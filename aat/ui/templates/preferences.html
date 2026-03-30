@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Preferences — AAT Review{% endblock %}
+
+{% block content %}
+<h1>Project Preferences</h1>
+
+<div class="section" style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:1rem 1.25rem;margin-bottom:1rem">
+  <h3 style="margin-top:0;font-size:0.9rem;color:#555;text-transform:uppercase">Terminology Overrides</h3>
+  {% if term_overrides %}
+  <table>
+    <thead>
+      <tr><th>Source Term</th><th>Target Term</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for src, tgt in term_overrides.items() %}
+      <tr>
+        <td>{{ src }}</td>
+        <td>{{ tgt }}</td>
+        <td>
+          <form method="POST" action="/preferences/term/delete" style="display:inline">
+            <input type="hidden" name="source" value="{{ src }}">
+            <button type="submit" class="btn btn-outline" style="font-size:0.8rem;padding:0.2em 0.5em">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:#999;font-size:0.9rem">No terminology overrides set.</p>
+  {% endif %}
+  <form method="POST" action="/preferences/term" style="margin-top:0.75rem;display:flex;gap:0.5rem">
+    <input name="source" placeholder="Source term" required style="padding:0.4em;border:1px solid #ccc;border-radius:4px">
+    <input name="target" placeholder="Target term" required style="padding:0.4em;border:1px solid #ccc;border-radius:4px">
+    <button type="submit" class="btn btn-primary">Add</button>
+  </form>
+</div>
+
+<div class="section" style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:1rem 1.25rem;margin-bottom:1rem">
+  <h3 style="margin-top:0;font-size:0.9rem;color:#555;text-transform:uppercase">Style Settings</h3>
+  <form method="POST" action="/preferences">
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <label style="display:block;font-size:0.85rem;color:#555">Formality</label>
+        <select name="formality" style="padding:0.4em;border:1px solid #ccc;border-radius:4px">
+          <option value="">—</option>
+          <option value="formal" {% if style.formality == 'formal' %}selected{% endif %}>Formal</option>
+          <option value="semi-formal" {% if style.formality == 'semi-formal' %}selected{% endif %}>Semi-formal</option>
+          <option value="informal" {% if style.formality == 'informal' %}selected{% endif %}>Informal</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:0.85rem;color:#555">Tone</label>
+        <select name="tone" style="padding:0.4em;border:1px solid #ccc;border-radius:4px">
+          <option value="">—</option>
+          <option value="academic" {% if style.tone == 'academic' %}selected{% endif %}>Academic</option>
+          <option value="technical" {% if style.tone == 'technical' %}selected{% endif %}>Technical</option>
+          <option value="general" {% if style.tone == 'general' %}selected{% endif %}>General</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

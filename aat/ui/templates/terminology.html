@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Terminology — AAT Review{% endblock %}
+
+{% block content %}
+<h1>Terminology</h1>
+
+<input type="text" id="search" placeholder="Search terms..."
+       onkeyup="filterTable()"
+       style="width:100%;max-width:400px;padding:0.5em;border:1px solid #ccc;border-radius:4px;margin-bottom:1rem;font-size:0.95rem">
+
+{% if terms %}
+<table>
+  <thead>
+    <tr>
+      <th>Source Term</th>
+      <th>Target Term</th>
+      <th>Confidence</th>
+      <th>Chapter</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t in terms %}
+    <tr>
+      <td>{{ t.source or '' }}</td>
+      <td>{{ t.target or '' }}</td>
+      <td>{{ '%.0f%%'|format((t.confidence or 0) * 100) }}</td>
+      <td>{{ t.chapter or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color:#999">No terminology data available. Terms will appear here when translation grounding data is generated.</p>
+{% endif %}
+
+<script>
+function filterTable() {
+  var query = document.getElementById('search').value.toLowerCase();
+  var rows = document.querySelectorAll('table tbody tr');
+  rows.forEach(function(row) {
+    var text = row.textContent.toLowerCase();
+    row.style.display = text.includes(query) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

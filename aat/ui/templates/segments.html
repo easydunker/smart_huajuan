@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Segments — AAT Review{% endblock %}
+
+{% block content %}
+<h1>Segments</h1>
+
+<div class="summary">
+  <span><strong>{{ stats.locked }}</strong>/{{ stats.total }} locked</span>
+  <span><strong>{{ stats.unlocked }}</strong> need review</span>
+  <span><strong>{{ stats.uncertain }}</strong> have uncertainties</span>
+  <span>Project: {{ stats.project_id }}</span>
+</div>
+
+<div class="filters">
+  <a href="/segments" {% if not filter %}class="active"{% endif %}>All</a>
+  <a href="/segments?filter=locked" {% if filter == 'locked' %}class="active"{% endif %}>Locked</a>
+  <a href="/segments?filter=needs_review" {% if filter == 'needs_review' %}class="active"{% endif %}>Needs Review</a>
+  <a href="/segments?filter=uncertain" {% if filter == 'uncertain' %}class="active"{% endif %}>Uncertain</a>
+  <a href="/segments?filter=needs_revision" {% if filter == 'needs_revision' %}class="active"{% endif %}>Needs Revision</a>
+</div>
+
+{% if segments %}
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Chapter</th>
+      <th>Source Preview</th>
+      <th>Translation Preview</th>
+      <th>State</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for seg in segments %}
+    <tr>
+      <td>{{ loop.index + (page - 1) * per_page }}</td>
+      <td>{{ seg.chapter_id or '—' }}</td>
+      <td>{{ (seg.source_text or '')[:80] }}{% if (seg.source_text or '')|length > 80 %}…{% endif %}</td>
+      <td>{{ (seg.translation or '')[:80] }}{% if (seg.translation or '')|length > 80 %}…{% endif %}</td>
+      <td>
+        {% if seg.locked %}
+          <span class="badge badge-locked">Locked</span>
+        {% elif seg.uncertainties %}
+          <span class="badge badge-uncertain">Uncertain</span>
+        {% else %}
+          <span class="badge badge-review">Review</span>
+        {% endif %}
+      </td>
+      <td><a href="/segments/{{ seg.sid }}">View</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if total > per_page %}
+<div class="pagination">
+  {% set total_pages = (total + per_page - 1) // per_page %}
+  {% for p in range(1, total_pages + 1) %}
+    <a href="/segments?page={{ p }}{% if filter %}&filter={{ filter }}{% endif %}"
+       {% if p == page %}class="active"{% endif %}>{{ p }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+<p>No segments found{% if filter %} for filter "{{ filter }}"{% endif %}.</p>
+{% endif %}
+{% endblock %}

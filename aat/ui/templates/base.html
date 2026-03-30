@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}AAT Review{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0; padding: 0;
+      color: #1a1a2e; background: #f8f9fa;
+      line-height: 1.6;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+    nav {
+      background: #1a1a2e; color: #fff; padding: 0.75rem 0;
+      border-bottom: 3px solid #4361ee;
+    }
+    nav .container { display: flex; align-items: center; gap: 2rem; }
+    nav .brand { font-weight: 700; font-size: 1.1rem; letter-spacing: 0.02em; }
+    nav a { color: #c8c8d8; text-decoration: none; font-size: 0.9rem; }
+    nav a:hover, nav a.active { color: #fff; }
+    main { padding: 1.5rem 0 3rem; }
+
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    th { background: #f0f0f5; text-align: left; padding: 0.6rem 0.75rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: #555; border-bottom: 2px solid #ddd; }
+    td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+    tr:nth-child(even) { background: #fafbfc; }
+    tr:hover { background: #f0f4ff; }
+    td a { color: #4361ee; text-decoration: none; }
+    td a:hover { text-decoration: underline; }
+
+    .badge {
+      display: inline-block; padding: 0.15em 0.55em; border-radius: 3px;
+      font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+    }
+    .badge-locked { background: #d4edda; color: #155724; }
+    .badge-review { background: #fff3cd; color: #856404; }
+    .badge-fail { background: #f8d7da; color: #721c24; }
+    .badge-uncertain { background: #cce5ff; color: #004085; }
+    .badge-wrong_terminology { background: #f8d7da; color: #721c24; }
+    .badge-meaning_drift { background: #fff3cd; color: #856404; }
+    .badge-tone_issue { background: #d1ecf1; color: #0c5460; }
+    .badge-omission { background: #f5c6cb; color: #721c24; }
+    .badge-addition { background: #ffeeba; color: #856404; }
+    .badge-style { background: #d4edda; color: #155724; }
+    .badge-other { background: #e2e3e5; color: #383d41; }
+
+    .summary {
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 6px;
+      padding: 1rem 1.25rem; margin-bottom: 1rem;
+      display: flex; gap: 2rem; flex-wrap: wrap; font-size: 0.95rem;
+    }
+    .summary strong { color: #4361ee; }
+    .filters { margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .filters a {
+      display: inline-block; padding: 0.35em 0.9em; border-radius: 4px;
+      font-size: 0.85rem; text-decoration: none;
+      border: 1px solid #ccc; color: #333; background: #fff;
+    }
+    .filters a:hover, .filters a.active { background: #4361ee; color: #fff; border-color: #4361ee; }
+    .pagination { margin-top: 1rem; display: flex; gap: 0.5rem; }
+    .pagination a {
+      padding: 0.3em 0.8em; border: 1px solid #ccc; border-radius: 4px;
+      text-decoration: none; color: #333; font-size: 0.85rem;
+    }
+    .pagination a.active { background: #4361ee; color: #fff; border-color: #4361ee; }
+
+    .toast {
+      position: fixed; top: 1rem; right: 1rem; background: #155724; color: #fff;
+      padding: 0.75rem 1.25rem; border-radius: 6px; font-size: 0.9rem;
+      opacity: 0; transition: opacity 0.3s;
+      z-index: 1000;
+    }
+    .toast.show { opacity: 1; }
+
+    @media (max-width: 768px) {
+      nav .container { flex-direction: column; gap: 0.5rem; }
+      .summary { flex-direction: column; gap: 0.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <span class="brand">AAT Review</span>
+      <a href="/segments">Segments</a>
+      <a href="/terminology">Terminology</a>
+      <a href="/preferences">Preferences</a>
+    </div>
+  </nav>
+  <main>
+    <div class="container">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var msg = params.get('msg');
+      if (msg) {
+        var t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(function(){ t.classList.remove('show'); }, 2500);
+        params.delete('msg');
+        var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+        history.replaceState(null, '', clean);
+      }
+    })();
+
+    document.addEventListener('keydown', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 'j' && document.querySelector('.next-link'))
+        window.location = document.querySelector('.next-link').href;
+      if (e.key === 'k' && document.querySelector('.prev-link'))
+        window.location = document.querySelector('.prev-link').href;
+    });
+  </script>
+</body>
+</html>
