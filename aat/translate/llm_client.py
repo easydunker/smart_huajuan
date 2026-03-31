@@ -1,8 +1,48 @@
 """LLM client abstraction supporting multiple providers."""
 
+import importlib.util
 import os
 from abc import ABC, abstractmethod
 from typing import Any
+
+
+OLLAMA_PROXY_ENV_VARS = (
+    "ALL_PROXY",
+    "all_proxy",
+    "HTTP_PROXY",
+    "http_proxy",
+    "HTTPS_PROXY",
+    "https_proxy",
+)
+
+
+def _import_ollama_module():
+    """Import ollama without inheriting proxy env that breaks local-daemon clients."""
+    saved_proxy_env = {name: os.environ.pop(name, None) for name in OLLAMA_PROXY_ENV_VARS}
+
+    try:
+        import ollama
+    finally:
+        for name, value in saved_proxy_env.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+    return ollama
+
+
+def _should_disable_sdk_proxy(import_error: ImportError) -> bool:
+    """Detect the specific SOCKS-proxy case that breaks SDK construction."""
+    if "socksio" not in str(import_error).lower():
+        return False
+
+    proxy_values = [os.environ.get(name, "") for name in OLLAMA_PROXY_ENV_VARS]
+    uses_socks_proxy = any(value.lower().startswith("socks") for value in proxy_values if value)
+    if not uses_socks_proxy:
+        return False
+
+    return importlib.util.find_spec("socksio") is None
 
 
 class LLMClient(ABC):
@@ -79,7 +119,16 @@ class AnthropicClient(LLMClient):
             if self.base_url:
                 client_kwargs["base_url"] = self.base_url
 
-            self._client = anthropic.Anthropic(**client_kwargs)
+            try:
+                self._client = anthropic.Anthropic(**client_kwargs)
+            except ImportError as e:
+                if not _should_disable_sdk_proxy(e):
+                    raise
+
+                import httpx
+
+                client_kwargs["http_client"] = httpx.Client(trust_env=False)
+                self._client = anthropic.Anthropic(**client_kwargs)
 
         except ImportError as e:
             raise LLMError(f"Failed to import anthropic: {e}. Install with: pip install anthropic")
@@ -181,9 +230,8 @@ class OllamaClient(LLMClient):
         self._client: Any = None
 
         try:
-            import ollama
-
-            self._client = ollama.Client(host=host)
+            ollama = _import_ollama_module()
+            self._client = ollama.Client(host=host, trust_env=False)
         except ImportError as e:
             raise LLMError(f"Failed to import ollama: {e}. Install with: pip install ollama")
 
@@ -241,7 +289,17 @@ class OpenAIClient(LLMClient):
         try:
             import openai
 
-            self._client = openai.OpenAI(api_key=api_key)
+            client_kwargs = {"api_key": api_key}
+            try:
+                self._client = openai.OpenAI(**client_kwargs)
+            except ImportError as e:
+                if not _should_disable_sdk_proxy(e):
+                    raise
+
+                import httpx
+
+                client_kwargs["http_client"] = httpx.Client(trust_env=False)
+                self._client = openai.OpenAI(**client_kwargs)
         except ImportError as e:
             raise LLMError(f"Failed to import openai: {e}. Install with: pip install openai")
 

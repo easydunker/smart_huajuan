@@ -3,6 +3,7 @@
 import os
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -135,6 +136,37 @@ class TestTranslateCommand:
         finally:
             os.unlink(temp_path)
 
+    def test_translate_respects_runtime_path_overrides(
+        self,
+        runner: CliRunner,
+        monkeypatch,
+        tmp_path: Path,
+    ) -> None:
+        """translate should use runtime path overrides for library and output storage."""
+        input_file = tmp_path / "paper.docx"
+        input_file.write_bytes(b"dummy")
+        library_dir = tmp_path / "library-store"
+        output_dir = tmp_path / "output-store"
+
+        mock_ingestion = MagicMock()
+        mock_ingestion.search_by_language.return_value = [{"text": "Example source text."}]
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.run.return_value = SimpleNamespace(segments=[], translation_segments=[])
+
+        monkeypatch.setenv("AAT_LIBRARY_DIR", str(library_dir))
+        monkeypatch.setenv("AAT_OUTPUT_DIR", str(output_dir))
+
+        with (
+            patch("aat.retrieval.ingestion.LibraryIngestion", return_value=mock_ingestion) as ingestion_cls,
+            patch("aat.translate.pipeline.TranslationPipeline", return_value=mock_pipeline),
+        ):
+            result = runner.invoke(main, ["translate", str(input_file)])
+
+        assert result.exit_code == 0
+        ingestion_cls.assert_called_once_with(library_dir)
+        assert (output_dir / "paper_translated.md").exists()
+
 
 class TestAddLibraryCommand:
     """Test add-library command."""
@@ -197,6 +229,27 @@ class TestAddLibraryCommand:
 
             assert result.exit_code == 0
             assert "Recursive mode" in result.output
+
+    def test_respects_library_dir_override(self, runner: CliRunner, monkeypatch, tmp_path: Path) -> None:
+        """AAT_LIBRARY_DIR override should be passed to LibraryIngestion."""
+        input_file = tmp_path / "paper.pdf"
+        input_file.write_bytes(b"dummy pdf content")
+        override_dir = tmp_path / "library-store"
+
+        mock_ingestion = MagicMock()
+        mock_ingestion.ingest_file.return_value = {
+            "status": "ingested",
+            "chunks_added": 1,
+            "language": "en",
+        }
+
+        monkeypatch.setenv("AAT_LIBRARY_DIR", str(override_dir))
+
+        with patch("aat.retrieval.ingestion.LibraryIngestion", return_value=mock_ingestion) as ingestion_cls:
+            result = runner.invoke(main, ["add-library", str(input_file)])
+
+        assert result.exit_code == 0
+        ingestion_cls.assert_called_once_with(override_dir)
 
 
 class TestResumeCommand:
@@ -380,47 +433,31 @@ class TestConfigCommand:
 class TestInitCommand:
     """Test init command."""
 
-    def test_init_creates_config(self, runner: CliRunner, tmp_path: Path) -> None:
+    def test_init_creates_config(self, runner: CliRunner, monkeypatch, tmp_path: Path) -> None:
         """Test that init creates configuration."""
-        import aat.cli
-        original_home = Path.home
+        aat_home = tmp_path / "aat-home"
+        monkeypatch.setenv("AAT_HOME", str(aat_home))
 
-        def mock_home() -> Path:
-            return tmp_path
+        result = runner.invoke(main, ["init"])
+        assert result.exit_code == 0
+        assert "Configuration created" in result.output
 
-        aat.cli.Path.home = mock_home  # type: ignore[attr-defined]
+        config_file = aat_home / "config.toml"
+        assert config_file.exists()
+        assert (aat_home / "library").exists()
+        assert (aat_home / "output").exists()
 
-        try:
-            result = runner.invoke(main, ["init"])
-            assert result.exit_code == 0
-            assert "Configuration created" in result.output
-
-            config_file = tmp_path / ".aat" / "config.toml"
-            assert config_file.exists()
-        finally:
-            aat.cli.Path.home = original_home  # type: ignore[attr-defined]
-
-    def test_init_overwrites_with_confirmation(self, runner: CliRunner, tmp_path: Path) -> None:
+    def test_init_overwrites_with_confirmation(self, runner: CliRunner, monkeypatch, tmp_path: Path) -> None:
         """Test that init can overwrite existing config with confirmation."""
-        import aat.cli
-        original_home = Path.home
+        aat_home = tmp_path / "aat-home"
+        monkeypatch.setenv("AAT_HOME", str(aat_home))
 
-        def mock_home() -> Path:
-            return tmp_path
+        aat_home.mkdir(exist_ok=True)
+        config_file = aat_home / "config.toml"
+        config_file.write_text("old config")
 
-        aat.cli.Path.home = mock_home  # type: ignore[attr-defined]
-
-        try:
-            config_dir = tmp_path / ".aat"
-            config_dir.mkdir(exist_ok=True)
-            config_file = config_dir / "config.toml"
-            config_file.write_text("old config")
-
-            result = runner.invoke(main, ["init"], input="y")
-            assert result.exit_code == 0
-
-        finally:
-            aat.cli.Path.home = original_home  # type: ignore[attr-defined]
+        result = runner.invoke(main, ["init"], input="y")
+        assert result.exit_code == 0
 
 
 class TestTranslateInteractiveFlag:
@@ -525,3 +562,24 @@ class TestReviewCommand:
         """'aat review /nonexistent' should fail."""
         result = runner.invoke(main, ["review", "/nonexistent_dir_12345"])
         assert result.exit_code != 0
+
+    def test_review_supports_host_and_no_browser(self, runner: CliRunner, tmp_path: Path) -> None:
+        """Container-friendly review flags should suppress browser launch and pass host through."""
+        with (
+            patch("aat.ui.server.create_app") as create_app_mock,
+            patch("aat.ui.server.app", new=MagicMock(name="app")),
+            patch("webbrowser.open") as open_mock,
+            patch("uvicorn.run") as uvicorn_run_mock,
+        ):
+            result = runner.invoke(
+                main,
+                ["review", str(tmp_path), "--host", "0.0.0.0", "--port", "9000", "--no-browser"],
+            )
+
+        assert result.exit_code == 0
+        create_app_mock.assert_called_once_with(tmp_path)
+        open_mock.assert_not_called()
+        uvicorn_run_mock.assert_called_once()
+        _, kwargs = uvicorn_run_mock.call_args
+        assert kwargs["host"] == "0.0.0.0"
+        assert kwargs["port"] == 9000

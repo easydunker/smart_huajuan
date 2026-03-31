@@ -1,0 +1,14 @@
+.git/
+venv/
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+checkpoints/
+projects/
+outputs/
+.coverage
+*.docx
+*.pyc
+.DS_Store

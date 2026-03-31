@@ -11,6 +11,7 @@ from aat.storage.checkpoints import (
     CheckpointManager,
     create_checkpoint_manager,
 )
+from aat.runtime_paths import get_projects_dir
 from aat.storage.models import (
     DocumentModel,
     Paragraph,
@@ -455,11 +456,13 @@ class TestCreateCheckpointManager:
         # Should create a temp directory
         assert manager.project_dir.exists()
 
-    def test_with_project_id(self) -> None:
+    def test_with_project_id(self, monkeypatch, tmp_path: Path) -> None:
         """Test creating manager with project ID."""
         project_id = "test-project-123"
-        # The factory uses cwd / projects / project_id
-        expected_project_dir = Path.cwd() / "projects" / project_id
+        projects_dir = tmp_path / "custom-projects"
+        monkeypatch.setenv("AAT_PROJECTS_DIR", str(projects_dir))
+
+        expected_project_dir = get_projects_dir() / project_id
 
         manager = create_checkpoint_manager(project_id)
 

@@ -1,5 +1,9 @@
 """Tests for LLM client abstraction."""
 
+import sys
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from aat.translate.llm_client import (
@@ -21,6 +25,26 @@ class TestCreateClient:
         assert isinstance(client, OllamaClient)
         assert client.model == "test-model"
 
+    def test_create_ollama_client_disables_proxy_env(self, monkeypatch) -> None:
+        """Ollama client creation should ignore ambient proxy env for local daemon access."""
+        captured_kwargs = {}
+
+        class MockClient:
+            def __init__(self, host=None, **kwargs):
+                captured_kwargs["host"] = host
+                captured_kwargs.update(kwargs)
+
+        monkeypatch.setitem(sys.modules, "ollama", SimpleNamespace(Client=MockClient))
+        monkeypatch.setenv("all_proxy", "socks5://127.0.0.1:7897")
+        monkeypatch.setenv("http_proxy", "http://127.0.0.1:7897")
+        monkeypatch.setenv("https_proxy", "http://127.0.0.1:7897")
+
+        client = create_client("ollama", model="test-model", host="http://localhost:11434")
+
+        assert isinstance(client, OllamaClient)
+        assert captured_kwargs["host"] == "http://localhost:11434"
+        assert captured_kwargs["trust_env"] is False
+
     def test_create_openai_client(self) -> None:
         """Test creating OpenAI client."""
         # Mock the OpenAI module to avoid API key requirement
@@ -39,6 +63,29 @@ class TestCreateClient:
         client = create_client("openai", model="gpt-4", api_key="test-key")
         assert isinstance(client, OpenAIClient)
         assert client.model == "gpt-4"
+
+    def test_create_openai_client_disables_proxy_env(self, monkeypatch) -> None:
+        """OpenAI client creation should fall back to trust_env=False when SOCKS support is missing."""
+        import openai
+
+        mock_instance = object()
+        side_effects = [ImportError("Missing socksio"), mock_instance]
+
+        with (
+            patch.object(openai, "OpenAI", side_effect=side_effects) as mock_openai,
+            patch("importlib.util.find_spec", return_value=None),
+            patch("httpx.Client") as mock_httpx_client,
+        ):
+            fallback_http_client = MagicMock()
+            mock_httpx_client.return_value = fallback_http_client
+            monkeypatch.setenv("all_proxy", "socks5://127.0.0.1:7897")
+
+            client = create_client("openai", model="gpt-4", api_key="test-key")
+
+        assert isinstance(client, OpenAIClient)
+        mock_httpx_client.assert_called_once_with(trust_env=False)
+        assert mock_openai.call_count == 2
+        assert mock_openai.call_args_list[1].kwargs["http_client"] is fallback_http_client
 
     def test_create_fake_client(self) -> None:
         """Test creating fake client."""

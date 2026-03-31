@@ -1,10 +1,16 @@
 """CLI entry point for Academic AI Translator."""
 
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
+
+from aat.runtime_paths import (
+    get_aat_home,
+    get_config_path,
+    get_library_dir,
+    get_output_dir,
+)
 
 if TYPE_CHECKING:
     from aat.storage.checkpoints import Checkpoint
@@ -58,14 +64,12 @@ def translate(
 
 
     # Import required modules
-    from pathlib import Path
     from aat.retrieval.ingestion import LibraryIngestion
     from aat.translate.pipeline import TranslationPipeline
-    import json
 
     # Step 1: Check if file is already in library
     input_path_obj = Path(input_path)
-    library_dir = Path.home() / ".aat" / "library"
+    library_dir = get_library_dir()
     ingestion = LibraryIngestion(library_dir)
 
     # Search for chunks from this file
@@ -78,7 +82,7 @@ def translate(
     click.echo(f"Found {len(chunks)} chunks in library")
 
     # Step 2: Create output directory
-    output_dir = Path.home() / ".aat" / "output"
+    output_dir = get_output_dir()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Step 3: Run real translation using Anthropic Claude
@@ -282,7 +286,7 @@ def add_library(
     path = Path(file_or_folder)
 
     # Initialize library ingestion
-    vector_store_dir = Path.home() / ".aat" / "library"
+    vector_store_dir = get_library_dir()
     ingestion = LibraryIngestion(vector_store_dir)
 
     if path.is_file():
@@ -636,7 +640,7 @@ def config() -> None:
 
     Display current configuration or edit config file.
     """
-    config_path = Path.home() / ".aat" / "config.toml"
+    config_path = get_config_path()
 
     if config_path.exists():
         click.echo(f"Configuration file: {config_path}")
@@ -654,10 +658,12 @@ def init() -> None:
 
     Create default configuration file and directories.
     """
-    config_dir = Path.home() / ".aat"
-    config_dir.mkdir(exist_ok=True)
+    config_dir = get_aat_home()
+    config_dir.mkdir(parents=True, exist_ok=True)
+    get_library_dir().mkdir(parents=True, exist_ok=True)
+    get_output_dir().mkdir(parents=True, exist_ok=True)
 
-    config_path = config_dir / "config.toml"
+    config_path = get_config_path()
 
     if config_path.exists():
         click.echo(f"Configuration already exists at: {config_path}")
@@ -692,7 +698,9 @@ backend = "chroma"
 @main.command()
 @click.argument("project_folder", type=click.Path(exists=True))
 @click.option("--port", default=8741, help="Port for review UI server")
-def review(project_folder: str, port: int) -> None:
+@click.option("--host", default="127.0.0.1", help="Host interface for the review UI server")
+@click.option("--no-browser", is_flag=True, help="Do not open a browser automatically")
+def review(project_folder: str, port: int, host: str, no_browser: bool) -> None:
     """Launch review UI for a translation project.
 
     Opens a browser-based review interface where you can inspect,
@@ -710,16 +718,18 @@ def review(project_folder: str, port: int) -> None:
     project_dir = Path(project_folder)
     create_app(project_dir)
 
-    url = f"http://127.0.0.1:{port}"
+    url_host = "127.0.0.1" if host == "0.0.0.0" else host
+    url = f"http://{url_host}:{port}"
     click.echo(f"Review UI running at {url}")
     click.echo("Press Ctrl+C to stop")
 
-    webbrowser.open(url)
+    if not no_browser:
+        webbrowser.open(url)
 
     import uvicorn
     from aat.ui.server import app
 
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
 @main.command()

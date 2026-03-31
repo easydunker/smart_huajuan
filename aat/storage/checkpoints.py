@@ -4,6 +4,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+from aat.runtime_paths import get_projects_dir
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -262,7 +264,7 @@ def create_checkpoint_manager(project_id: str | None = None) -> CheckpointManage
         CheckpointManager instance.
     """
     if project_id:
-        project_dir = Path.cwd() / "projects" / project_id
+        project_dir = get_projects_dir() / project_id
     else:
         import tempfile
         project_dir = Path(tempfile.mkdtemp())

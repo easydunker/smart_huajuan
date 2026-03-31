@@ -1,8 +1,8 @@
 """Tests for Anthropic Claude provider."""
 
-import pytest
 import os
-from unittest.mock import Mock, patch, MagicMock
+import pytest
+from unittest.mock import Mock, patch
 
 from aat.translate.llm_client import AnthropicClient, LLMError, create_client
 
@@ -54,6 +54,26 @@ class TestAnthropicClient:
                 AnthropicClient()
             assert "ANTHROPIC_API_KEY" in str(exc_info.value)
             assert "environment variable" in str(exc_info.value)
+
+    def test_init_disables_proxy_env_when_socks_support_is_missing(self):
+        """SOCKS proxy env without socksio should fall back to trust_env=False."""
+        mock_client = Mock()
+
+        with (
+            patch("anthropic.Anthropic", side_effect=[ImportError("Missing socksio"), mock_client]) as mock_anthropic,
+            patch("importlib.util.find_spec", return_value=None),
+            patch("httpx.Client") as mock_httpx_client,
+            patch.dict(os.environ, {"all_proxy": "socks5://127.0.0.1:7897"}, clear=False),
+        ):
+            fallback_http_client = Mock()
+            mock_httpx_client.return_value = fallback_http_client
+
+            client = AnthropicClient(api_key="test-key")
+
+        assert client._client is mock_client
+        mock_httpx_client.assert_called_once_with(trust_env=False)
+        assert mock_anthropic.call_count == 2
+        assert mock_anthropic.call_args_list[1].kwargs["http_client"] is fallback_http_client
 
     def test_chat_simple_message(self):
         """Test simple chat message."""

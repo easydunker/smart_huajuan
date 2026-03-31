@@ -125,15 +125,19 @@ async def segment_list(
         return HTMLResponse("<h1>Not initialized</h1><p>Run create_app() first.</p>", status_code=503)
     segments, total = loader.list_segments(page=page, state_filter=filter)
     stats = loader.get_stats()
-    return templates.TemplateResponse("segments.html", {
-        "request": request,
-        "segments": segments,
-        "stats": stats,
-        "page": page,
-        "total": total,
-        "per_page": 50,
-        "filter": filter,
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="segments.html",
+        context={
+            "request": request,
+            "segments": segments,
+            "stats": stats,
+            "page": page,
+            "total": total,
+            "per_page": 50,
+            "filter": filter,
+        },
+    )
 
 
 @app.get("/segments/{sid}", response_class=HTMLResponse)
@@ -148,14 +152,18 @@ async def segment_detail(request: Request, sid: str):
     idx = sids.index(sid) if sid in sids else -1
     prev_sid = sids[idx - 1] if idx > 0 else None
     next_sid = sids[idx + 1] if idx < len(sids) - 1 else None
-    return templates.TemplateResponse("segment_detail.html", {
-        "request": request,
-        "seg": segment,
-        "index": idx + 1,
-        "total": len(sids),
-        "prev_sid": prev_sid,
-        "next_sid": next_sid,
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="segment_detail.html",
+        context={
+            "request": request,
+            "seg": segment,
+            "index": idx + 1,
+            "total": len(sids),
+            "prev_sid": prev_sid,
+            "next_sid": next_sid,
+        },
+    )
 
 
 def _check_initialized():
@@ -288,11 +296,15 @@ async def preferences_page(request: Request):
     prefs = checkpoint_manager.get_project_preferences()
     term_overrides = prefs.get("terminology_overrides", {})
     style = {k: v for k, v in prefs.items() if k != "terminology_overrides"}
-    return templates.TemplateResponse("preferences.html", {
-        "request": request,
-        "term_overrides": term_overrides,
-        "style": style,
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="preferences.html",
+        context={
+            "request": request,
+            "term_overrides": term_overrides,
+            "style": style,
+        },
+    )
 
 
 @app.post("/preferences")
@@ -340,10 +352,14 @@ async def terminology(request: Request):
     if loader is None:
         return HTMLResponse("Not initialized", status_code=503)
     terms = _extract_terms(loader)
-    return templates.TemplateResponse("terminology.html", {
-        "request": request,
-        "terms": terms,
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="terminology.html",
+        context={
+            "request": request,
+            "terms": terms,
+        },
+    )
 
 
 def _extract_terms(ldr: ProjectLoader) -> list[dict]:

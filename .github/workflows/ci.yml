@@ -33,3 +33,24 @@ jobs:
       - name: Check formatting
         run: |
           black --check aat tests
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t aat-dev .
+
+      - name: Smoke test CLI help
+        run: |
+          docker run --rm aat-dev --help
+
+      - name: Smoke test init
+        run: |
+          docker run --rm aat-dev init
+
+      - name: Run containerized Docker smoke test slice
+        run: |
+          docker run --rm --entrypoint pytest aat-dev tests/test_runtime_paths.py tests/test_cli.py tests/test_ui/test_server.py -q
